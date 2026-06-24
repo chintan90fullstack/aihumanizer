@@ -1,0 +1,8 @@
+node_modules
+dist
+*.log
+.env
+.vite
+deploy/node_modules
+deploy/.env
+aihumanizer-linux.zip

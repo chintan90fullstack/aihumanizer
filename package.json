@@ -1,0 +1,17 @@
+{
+  "name": "aihumanizer",
+  "version": "1.0.0",
+  "description": "One-page AI text humanizer (React + Node) powered by the Humanize AI Pro API",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "dev": "concurrently -n server,client -c blue,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "start:server": "npm --prefix server start",
+    "start:client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "build:deploy": "node scripts/build-deploy.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
