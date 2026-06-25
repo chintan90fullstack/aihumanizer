@@ -10,17 +10,19 @@ import {
   maskProtected,
   unmaskProtected,
 } from "./transforms.js";
+import { stripPerformativeCasual } from "./performativePass.js";
+import { stripEssayTells, countEssayTells } from "./essayPass.js";
 import { analyzeDetectorSignals } from "./detectorMetrics.js";
 
 /** Longest-first AI vocabulary → plain human phrasing. */
 const AI_VOCAB = [
   // --- 100% detector patterns (latest screenshot) ---
-  ["managing a demanding boss can be an overwhelming experience, filled with constant pressure, high expectations, and relentless pace", "a demanding boss wears you out. pressure stays high. expectations don't let up. the pace is brutal"],
+  ["managing a demanding boss can be an overwhelming experience, filled with constant pressure, high expectations, and relentless pace", "working with a demanding boss is tough. pressure stays high. expectations don't let up. the pace is fast"],
   ["these conditions can leave you feeling exhausted, stressed, and undervalued", "you end up exhausted. stressed. undervalued too"],
   ["you do have agency over how you respond and interact with them", "you still choose how you respond"],
-  ["gaining control by developing effective strategies for navigating the relationship, cultivating a more productive atmosphere, and safeguarding your own well-being in the process", "learning how to handle the relationship, ease the tension at work, and protect your peace of mind"],
-  ["before developing strategies to cope with your boss's demanding nature, take a step back to consider what might be driving their behavior", "before you try anything, ask what's actually driving your boss to act this way"],
-  ["while understanding the root of their demands isn't an excuse, it can help you separate their actions from your own worth and approach the situation with greater empathy and strategic thinking", "knowing why they push hard doesn't excuse it. still, it helps you step back and handle things with more patience"],
+  ["gaining control by developing effective strategies for navigating the relationship, cultivating a more productive atmosphere, and safeguarding your own well-being in the process", "get through the workweek with them, ease the tension at work, and look after yourself"],
+  ["before developing strategies to cope with your boss's demanding nature, take a step back to consider what might be driving their behavior", "before you react, ask what's actually driving your boss to act this way"],
+  ["while understanding the root of their demands isn't an excuse, it can help you separate their actions from your own worth and approach the situation with greater empathy and strategic thinking", "knowing why they push hard doesn't excuse it. still, it helps you step back and stay calmer when they push"],
   ["effective management of a challenging supervisor requires a thoughtful approach that combines strategic communication with clear expectations and a strong work ethic", "with a tough boss, you need straight talk, firm boundaries, and a workload you can actually handle"],
   ["overwhelming experience", "rough ride"],
   ["filled with constant pressure", "with nonstop pressure"],
@@ -28,7 +30,7 @@ const AI_VOCAB = [
   ["interact with them", "deal with them"],
   ["gaining control by developing", "building"],
   ["cultivating a more productive atmosphere", "making work less tense"],
-  ["safeguarding your own well-being", "protecting your peace of mind"],
+  ["safeguarding your own well-being", "protecting your your own headspace"],
   ["in the process", ""],
   ["take a step back to consider", "think about"],
   ["feeling overwhelmed by external pressures", "under pressure themselves"],
@@ -39,15 +41,15 @@ const AI_VOCAB = [
   ["while understanding the root of their demands isn't an excuse", "knowing why they push hard doesn't excuse it"],
 
   // --- 77.1% detector patterns (new synonyms) ---
-  ["before developing strategies to address your boss's demanding behavior, it's essential to consider the underlying factors driving their actions", "before you try anything, ask what's actually pushing your boss to act this way"],
-  ["before developing strategies to address your boss's hard-driving style, you need to consider what's actually pushing them", "before you try anything, figure out what's actually pushing your boss"],
-  ["before developing strategies to address your boss's demanding behavior, you need to consider what's actually pushing them", "before you try anything, figure out what's actually pushing your boss"],
-  ["before developing strategies to address your boss's demanding behavior, you need to consider", "before you try anything, figure out"],
+  ["before developing strategies to address your boss's demanding behavior, it's essential to consider the underlying factors driving their actions", "before you react, ask what's actually pushing your boss to act this way"],
+  ["before developing strategies to address your boss's hard-driving style, you need to consider what's actually pushing them", "before you react, figure out what's actually pushing your boss"],
+  ["before developing strategies to address your boss's demanding behavior, you need to consider what's actually pushing them", "before you react, figure out what's actually pushing your boss"],
+  ["before developing strategies to address your boss's demanding behavior, you need to consider", "before you react, figure out"],
   ["it's essential to consider the underlying factors driving their actions", "figure out what's actually pushing them"],
   ["it's essential to consider the root causes driving their actions", "figure out what's actually pushing them"],
   ["managing a demanding boss can be an exhausting experience, characterized by high expectations, relentless pressure, and a fast-paced environment that leaves you feeling drained, stressed, and underappreciated", "a demanding boss wears you out. Expectations run high. The pressure won't quit. The pace is frantic. You end up drained. Stressed. Underappreciated too"],
-  ["equipping yourself with effective strategies for navigating the relationship, creating a more productive atmosphere, and ultimately safeguarding your own emotional well-being", "learning how to handle the relationship, make work less tense, and protect your peace of mind"],
-  ["equipping yourself with effective strategies for handling the relationship, creating a more productive atmosphere, and ultimately safeguarding your own emotional well-being", "learning how to handle the relationship, make work less tense, and protect your peace of mind"],
+  ["equipping yourself with effective strategies for navigating the relationship, creating a more productive atmosphere, and ultimately safeguarding your own emotional well-being", "get through the workweek with them, make work less tense, and look after yourself"],
+  ["equipping yourself with effective strategies for handling the relationship, creating a more productive atmosphere, and ultimately safeguarding your own emotional well-being", "get through the workweek with them, make work less tense, and look after yourself"],
   ["equipping yourself with effective strategies for navigating the relationship", "learning practical ways to handle the relationship"],
   ["equipping yourself with effective strategies for handling the relationship", "learning practical ways to handle the relationship"],
   ["while you may not be able to alter your boss's personality or management approach, you do have control over how you respond and engage with them", "you can't change your boss's personality or management style. But you still choose how you respond"],
@@ -60,7 +62,7 @@ const AI_VOCAB = [
   ["effective management of a challenging supervisor requires a thoughtful approach that combines strategic communication with established boundaries, as well as the development of efficient work routines", "with a tough boss, you need straight talk, firm boundaries, and a workload you can actually manage"],
   ["effective management of a challenging supervisor requires", "handling a tough boss takes"],
   ["this isn't about trying to change your supervisor", "this isn't about fixing your boss"],
-  ["emotional well-being", "peace of mind"],
+  ["emotional well-being", "your own headspace"],
   ["fast-paced environment", "frantic pace"],
   ["relentless pressure", "pressure that won't let up"],
   ["underlying factors driving their actions", "what's actually pushing them"],
@@ -77,16 +79,16 @@ const AI_VOCAB = [
   ["while understanding their motivations doesn't excuse their demands", "knowing why they act that way doesn't excuse the pressure"],
 
   // --- 96.8% patterns ---
-  ["it's essential to grasp the underlying drivers behind your boss's hard-driving style before trying to fix things", "before you try to fix anything, figure out what's really driving your boss's hard-driving style"],
-  ["it's essential to grasp the underlying drivers behind your boss's demanding behavior before trying to fix things", "before you try to fix anything, figure out what's really driving your boss's behavior"],
+  ["it's essential to grasp the underlying drivers behind your boss's hard-driving style before trying to fix things", "before you react, figure out what's really driving your boss's hard-driving style"],
+  ["it's essential to grasp the underlying drivers behind your boss's demanding behavior before trying to fix things", "before you react, figure out what's really driving your boss's behavior"],
   ["it's essential to grasp the underlying drivers behind", "first, figure out what's really driving"],
   ["it is essential to grasp the underlying drivers behind", "you need to understand what's really driving"],
   ["it's essential to grasp", "you need to get clear on"],
   ["it is essential to grasp", "you need to get clear on"],
   ["disciplined approach to workload management", "careful way of handling your workload"],
   ["effective management of a high-pressure supervisor requires", "handling a demanding boss takes"],
-  ["approach the situation with greater empathy and strategic thinking", "handle things with more patience and clearer thinking"],
-  ["approach the situation with greater empathy and clear thinking", "handle things with more patience"],
+  ["approach the situation with greater empathy and strategic thinking", "stay calmer when they push and clearer thinking"],
+  ["approach the situation with greater empathy and clear thinking", "stay calmer when they push"],
   ["can be addressed through targeted approaches", "can improve with specific steps"],
   ["arming yourself with tactics to navigate the relationship more adeptly", "learning practical ways to handle the relationship better"],
   ["arming yourself with tactics to handle the relationship more adeptly", "learning practical ways to handle the relationship better"],
@@ -105,7 +107,7 @@ const AI_VOCAB = [
   ["underlying drivers behind", "real reasons behind"],
   ["underlying drivers", "real reasons"],
   ["exploring strategies to address it", "trying to fix things"],
-  ["before exploring strategies", "before you try to fix anything"],
+  ["before exploring strategies", "before you react"],
   ["operating under intense pressure", "under crushing pressure themselves"],
   ["harbor impossibly high standards", "expect way too much"],
   ["struggle with communication or insecurity", "have trouble communicating or feel insecure"],
@@ -279,7 +281,7 @@ function grammarFixes(text) {
     .replace(/\bequipping yourself\b/gi, "getting yourself set up")
     .replace(/\bstrategic perspective\b/gi, "clearer read on it")
     .replace(/\byou need to consider the what's\b/gi, "figure out what's")
-    .replace(/\bstruggling with trouble communicating\b/gi, "having trouble communicating")
+    .replace(/\bsimply a bad delegation habits\b/gi, "simply not delegating well")
     .replace(/\bWhile understanding the root of their demands isn't an excuse\b/gi, "Knowing why they push hard doesn't excuse it")
     .replace(/\.([A-Z])/g, ". $1");
 }
@@ -294,6 +296,8 @@ function processBlock(block, { ultra = false } = {}) {
   t = stripAiVocabulary(t);
   if (ultra) t = stripUltraVocab(t);
   t = grammarFixes(t);
+  t = stripEssayTells(t);
+  t = stripPerformativeCasual(t);
   t = trimDashCommentary(t);
   t = breakTripletFeelings(t);
   t = breakParallelLists(t);
@@ -317,7 +321,7 @@ function stripUltraVocab(text) {
     ["requires a thoughtful approach", "takes a clear head"],
     ["effective strategies", "practical moves"],
     ["developing strategies to address", "figuring out how to handle"],
-    ["before developing strategies", "before you try anything"],
+    ["before developing strategies", "first"],
     ["consider the underlying", "pin down what's"],
     ["inform your approach", "shape how you handle it"],
     ["foster empathy", "stay patient"],

@@ -2,6 +2,9 @@
 // Ollama always produces detector-flagged prose; this layer is non-optional.
 
 import { antiDetectorPassWithScore, detectorHeuristicScore } from "./antiDetectorPass.js";
+import { stripPerformativeCasual, countPerformativeTells } from "./performativePass.js";
+import { stripEssayTells, countEssayTells } from "./essayPass.js";
+import { splitFlaggedAdvice, countFlaggedAdvice } from "./advicePass.js";
 import { analyzeDetectorSignals } from "./detectorMetrics.js";
 
 /** Phrases that GPTZero flags — if ANY remain, keep scrubbing. */
@@ -31,6 +34,16 @@ const AI_TELL_PATTERNS = [
   /in the process\./i,
   /relentless pace/i,
   /high expectations, and relentless/i,
+  /total nightmare/i,
+  /let's be real/i,
+  /you see,/i,
+  /without losing your mind/i,
+  /smart and strategic/i,
+  /wears you down, no question/i,
+  /so how do you handle it/i,
+  /clarity is queen/i,
+  /high-maintenance/i,
+  /the pressure never lets up/i,
 ];
 
 /** Full-sentence rewrites for the most common AI essay openers. */
@@ -71,10 +84,40 @@ const NUCLEAR_REWRITES = [
     /Are they feeling overwhelmed by external pressures\?/gi,
     "Are they under pressure themselves?",
   ],
+  // --- 25% detector patterns (performative casual) ---
+  [
+    /Dealing with a demanding boss can be a total nightmare! The pressure never lets up\./gi,
+    "Working with a demanding boss is tough. The pressure keeps coming.",
+  ],
+  [
+    /And let's be real, you're probably stressed out too\. Underappreciated\? Yeah, that too\./gi,
+    "You're probably stressed too. You might feel undervalued as well.",
+  ],
+  [
+    /You can't change them, so what's the plan\?/gi,
+    "You can't change them. Focus on what you can control.",
+  ],
+  [
+    /You see, finding ways to handle the relationship without losing your mind is key\./gi,
+    "Finding a way to work with them without burning out matters.",
+  ],
+  [
+    /It's not about changing their attitude or management style; it's about you being smart and strategic\./gi,
+    "It's not about changing how they lead. It's about staying practical on your end.",
+  ],
+  [
+    /A demanding boss wears you down, no question\. So how do you handle it\?/gi,
+    "This kind of boss takes a toll. A few habits help.",
+  ],
 ];
 
 export function countAiTells(text) {
-  return AI_TELL_PATTERNS.filter((re) => re.test(text)).length;
+  return (
+    AI_TELL_PATTERNS.filter((re) => re.test(text)).length +
+    countPerformativeTells(text) +
+    countEssayTells(text) +
+    countFlaggedAdvice(text)
+  );
 }
 
 function nuclearScrub(text) {
@@ -95,15 +138,22 @@ export function finalizeHumanOutput(text) {
   let heuristic = detectorHeuristicScore(analyzeDetectorSignals(out));
   let tells = countAiTells(out);
 
-  // Phase 1: iterative anti-detector passes
-  for (let i = 0; i < 8 && (heuristic > 10 || tells > 0); i++) {
+  // Phase 0: strip essay + performative casual + split flagged advice
+  out = stripEssayTells(out);
+  out = stripPerformativeCasual(out);
+  out = splitFlaggedAdvice(out);
+  tells = countAiTells(out);
+
+  // Phase 1: iterative anti-detector passes (run until clean or max 10 rounds)
+  for (let i = 0; i < 10 && tells > 0; i++) {
+    out = stripEssayTells(out);
+    out = stripPerformativeCasual(out);
     const result = antiDetectorPassWithScore(out);
     out = result.text;
     heuristic = result.heuristicScore;
     tells = countAiTells(out);
   }
 
-  // Phase 2: nuclear full-sentence rewrites for stubborn AI essay patterns
   if (tells > 0) {
     out = nuclearScrub(out);
     const result = antiDetectorPassWithScore(out);

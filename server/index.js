@@ -6,9 +6,8 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import { extractText } from "./textExtractor.js";
-import { humanize } from "./humanizer/engine.js";
 import { humanizeWithOllama, ollamaConfig, warmupOllama } from "./humanizer/ollama.js";
-import { applySmartGates } from "./humanizer/smartHumanize.js";
+import { applySmartGates, humanizeDeterministic } from "./humanizer/smartHumanize.js";
 import { recordGeneration, recordFeedback, profileSummary } from "./humanizer/feedback.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,9 +18,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MAX_CHARS = 50000;
 
-// If Ollama is unreachable, optionally fall back to the local algorithmic
-// engine instead of erroring. Off by default so failures are explicit.
-const FALLBACK_LOCAL = /^(1|true|yes)$/i.test(process.env.OLLAMA_FALLBACK_LOCAL || "");
+// Ollama is opt-in. Default is fast deterministic-only (avoids multi-minute hangs / NetworkError).
+const USE_OLLAMA = /^(1|true|yes)$/i.test(process.env.USE_OLLAMA || "");
 
 if (!isProduction) {
   app.use(cors());
@@ -35,9 +33,8 @@ const upload = multer({
 });
 
 /**
- * Shared handler: humanize text with the local Ollama LLM, persist the
- * generation for the feedback loop, and return the result. Falls back to the
- * local algorithmic engine only if OLLAMA_FALLBACK_LOCAL is enabled.
+ * Humanize text. Default: fast deterministic engine (~1–3s).
+ * Set USE_OLLAMA=1 to also run the local Ollama LLM (slow on CPU).
  */
 async function handleHumanize(text, intensity, res) {
   const trimmed = (text || "").trim();
@@ -51,33 +48,37 @@ async function handleHumanize(text, intensity, res) {
   }
 
   let outputText;
-  let engine = "ollama";
+  let engine = "deterministic";
   let detectorHeuristic = null;
   let aiTellsRemaining = null;
 
-  try {
+  // Default: fast deterministic rewrite (works for short and long text).
+  let finalized = humanizeDeterministic(trimmed);
+  outputText = finalized.text;
+  detectorHeuristic = finalized.heuristicScore;
+  aiTellsRemaining = finalized.aiTellsRemaining;
+  engine = finalized.engine || "deterministic";
+  console.log(`[humanize] deterministic (${outputText.split(/\s+/).length} words)`);
+
+  if (USE_OLLAMA) try {
+    engine = "ollama";
     const r = await humanizeWithOllama(trimmed, { intensity });
-    const finalized = applySmartGates(r.text, trimmed);
+    finalized = applySmartGates(r.text, trimmed);
     outputText = finalized.text;
     detectorHeuristic = finalized.heuristicScore;
     aiTellsRemaining = finalized.aiTellsRemaining;
-    if (!finalized.wasTransformed) {
-      console.warn("[smart] WARNING: output was not transformed — check pipeline");
-    }
+    if (finalized.engine) engine = finalized.engine;
   } catch (ollamaErr) {
     console.error("[ollama] error:", ollamaErr.code || "", ollamaErr.message);
-    if (FALLBACK_LOCAL) {
-      engine = "local-fallback";
-      const local = humanize(trimmed, { intensity }).text;
-      const finalized = applySmartGates(local, trimmed);
-      outputText = finalized.text;
-      detectorHeuristic = finalized.heuristicScore;
-      aiTellsRemaining = finalized.aiTellsRemaining;
-    } else {
-      return res
-        .status(ollamaErr.status || 503)
-        .json({ error: ollamaErr.message, code: ollamaErr.code });
-    }
+    console.log("[humanize] Ollama failed — keeping deterministic result");
+    engine = "deterministic";
+  }
+
+  if (!outputText) {
+    return res.status(503).json({
+      error: "Humanization failed. Please try again.",
+      code: "HUMANIZE_FAILED",
+    });
   }
 
   try {
@@ -107,9 +108,9 @@ async function handleHumanize(text, intensity, res) {
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
-    engine: "ollama",
+    engine: USE_OLLAMA ? "ollama" : "deterministic",
     ollama: ollamaConfig,
-    fallback_local: FALLBACK_LOCAL,
+    use_ollama: USE_OLLAMA,
     profile: profileSummary(),
   });
 });

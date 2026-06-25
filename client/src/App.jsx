@@ -14,9 +14,14 @@ function countWords(text) {
   return t ? t.split(/\s+/).length : 0;
 }
 
-// Safely parse a response body. Long Ollama runs can occasionally return an
-// empty or non-JSON body (e.g. a proxy/connection drop); turn that into a
-// clear message instead of a cryptic "JSON.parse: unexpected end of data".
+function formatFetchError(err) {
+  const msg = err?.message || "";
+  if (err?.name === "TypeError" && /fetch|network/i.test(msg)) {
+    return "Cannot reach the server. Open http://localhost:5173/ and make sure npm run dev is running (ports 5000 + 5173).";
+  }
+  return msg || "Something went wrong. Please try again.";
+}
+
 async function parseJsonSafe(res) {
   const raw = await res.text();
   if (!raw) {
@@ -108,7 +113,7 @@ export default function App() {
       setGenerationId(data.generation_id || null);
       setStats(data);
     } catch (err) {
-      setError(err.message);
+      setError(formatFetchError(err));
     } finally {
       setLoading(false);
     }
@@ -129,7 +134,7 @@ export default function App() {
       }
       setInput(data.text || "");
     } catch (err) {
-      setError(err.message);
+      setError(formatFetchError(err));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

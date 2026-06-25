@@ -47,42 +47,41 @@ const PING_TIMEOUT_MS = Number(process.env.OLLAMA_PING_TIMEOUT_MS || 4000);
 const KEEP_ALIVE = process.env.OLLAMA_KEEP_ALIVE || "1h";
 const MAX_PREDICT = Number(process.env.OLLAMA_MAX_PREDICT || 4096);
 
-const FEWSHOT = `EXAMPLE — AI (detector flags 100%):
-"Managing a demanding boss can be an overwhelming experience, filled with constant pressure, high expectations, and relentless pace."
+const FEWSHOT = `EXAMPLE — AI (detector flags high %):
+"Managing a demanding boss can be an overwhelming experience, filled with constant pressure."
+"Dealing with a demanding boss can be a total nightmare! Let's be real, you're stressed out!"
 
 EXAMPLE — HUMAN (detector passes):
-"A demanding boss wears you out. Pressure stays high. Expectations don't let up. The pace is brutal."
+"Working with a demanding boss is tough. Expectations run high. The pace doesn't slow down. You end up tired and overlooked. You can't change how they lead. You can change how you respond."
 
-Write like the HUMAN example. Never like the AI example.`;
+Write like the HUMAN example — calm, plain, no exclamation marks, no "let's be real" or "total nightmare".`;
 
-const SYSTEM_PROMPT = `You rewrite text in a casual human voice — like a real person venting or advising a friend. NOT like ChatGPT or LinkedIn.
+const SYSTEM_PROMPT = `You rewrite text like a calm coworker explaining something — NOT like ChatGPT, a blogger, or a life coach.
 
 ${FEWSHOT}
 
-BANNED WORDS (never use): overwhelming experience, characterized by, agency, cultivating, safeguarding, equipping, effective strategies, navigating, underlying factors, strategic thinking, Furthermore, Moreover, essential to consider, relentless pace, emotional well-being, in the process, thoughtful approach, utilize, facilitate, leverage, foster, holistic.
+BANNED: exclamation marks, "total nightmare", "let's be real", "you see", "honestly I bet", "superpower", "high-maintenance", "clarity is queen", "without losing your mind", "smart and strategic", overwhelming experience, cultivating, safeguarding, navigating, strategic thinking, Furthermore, Moreover.
 
-REQUIRED STYLE:
-- Mix 3-word punchy sentences with longer ones
-- Use contractions: don't, it's, you're, can't, won't
-- Ask direct questions where it fits: "Are they under pressure themselves?"
-- Break lists — never "X, Y, and Z" in one breath
-- Plain words: "wears you out" not "overwhelming experience", "peace of mind" not "well-being"
+STYLE:
+- Mix short and medium sentences. No dramatic openers.
+- Contractions: don't, it's, you're, can't
+- Plain words. No hype. No fake casual slang.
+- Questions only when natural: "Are they under pressure themselves?"
 
-RULES: Keep ALL meaning. Same paragraph count. Same word count ±15%.
+RULES: Keep ALL meaning. Same paragraphs. Word count ±15%.
 OUTPUT ONLY THE REWRITTEN TEXT.`;
 
 /** Second-pass system prompt — strips remaining AI tone from a draft. */
-const DEAI_SYSTEM_PROMPT = `You fix AI-sounding text. Make it sound like a real human wrote it.
+const DEAI_SYSTEM_PROMPT = `Fix AI-sounding text. Make it calm and plain — like a real person wrote it, not an AI pretending to be casual.
 
 ${FEWSHOT}
 
-Keep every fact. Keep roughly the same length. Use short sentences. Contractions. Questions.
-Remove ALL corporate/AI words. Output ONLY the fixed text.`;
+Remove ALL exclamation marks. Remove hype words. Keep every fact. Output ONLY the fixed text.`;
 
 const TEMPERATURE = {
-  light: 0.82,
-  balanced: 0.95,
-  strong: 1.1,
+  light: 0.78,
+  balanced: 0.88,
+  strong: 0.92,
 };
 
 function wordCount(text) {
@@ -91,7 +90,11 @@ function wordCount(text) {
 }
 
 function splitParagraphs(text) {
-  const parts = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  // Blank-line paragraphs first; fall back to single newlines (common in pasted text).
+  let parts = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 1 && /\n/.test(parts[0])) {
+    parts = parts[0].split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  }
   return parts.length ? parts : [text.trim()];
 }
 
