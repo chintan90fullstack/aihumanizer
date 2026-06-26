@@ -14,9 +14,15 @@ function countWords(text) {
   return t ? t.split(/\s+/).length : 0;
 }
 
-function formatFetchError(err) {
+function formatFetchError(err, { serverReachable = false } = {}) {
   const msg = err?.message || "";
   if (err?.name === "TypeError" && /fetch|network/i.test(msg)) {
+    if (serverReachable) {
+      return (
+        "The connection dropped while Ollama was still rewriting. Long articles (500+ words) can take 15–30 minutes on CPU. " +
+        "Keep this tab open and try again, or humanize one section at a time."
+      );
+    }
     return "Cannot reach the server. Open http://localhost:5173/ and make sure npm run dev is running (ports 5000 + 5173).";
   }
   return msg || "Something went wrong. Please try again.";
@@ -76,13 +82,23 @@ export default function App() {
       45000
     );
     const t3 = setTimeout(
-      () => setLoadingHint("Almost there — large models on CPU need patience…"),
+      () => setLoadingHint("Still working — large articles can take 10–20 min on CPU…"),
       120000
+    );
+    const t4 = setTimeout(
+      () => setLoadingHint("Almost there — do not close this tab…"),
+      300000
+    );
+    const t5 = setTimeout(
+      () => setLoadingHint("Very long text — Ollama is still rewriting paragraph by paragraph…"),
+      600000
     );
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      clearTimeout(t4);
+      clearTimeout(t5);
     };
   }, [loading]);
 
@@ -113,7 +129,17 @@ export default function App() {
       setGenerationId(data.generation_id || null);
       setStats(data);
     } catch (err) {
-      setError(formatFetchError(err));
+      let serverReachable = false;
+      try {
+        const h = await fetch("/api/health", { signal: AbortSignal.timeout(4000) });
+        serverReachable = h.ok;
+      } catch {
+        serverReachable = false;
+      }
+      // #region agent log
+      fetch('http://127.0.0.1:7450/ingest/d242bc8c-686f-470d-8acf-51f67d8ecfa6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0cf9d6'},body:JSON.stringify({sessionId:'0cf9d6',location:'client/App.jsx:handleHumanize:catch',message:'humanize fetch failed',data:{errName:err?.name,errMsg:err?.message,serverReachable,inputWords:countWords(input)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
+      setError(formatFetchError(err, { serverReachable }));
     } finally {
       setLoading(false);
     }
@@ -134,7 +160,14 @@ export default function App() {
       }
       setInput(data.text || "");
     } catch (err) {
-      setError(formatFetchError(err));
+      let serverReachable = false;
+      try {
+        const h = await fetch("/api/health", { signal: AbortSignal.timeout(4000) });
+        serverReachable = h.ok;
+      } catch {
+        serverReachable = false;
+      }
+      setError(formatFetchError(err, { serverReachable }));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

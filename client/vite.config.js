@@ -15,11 +15,9 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:5000",
         changeOrigin: true,
-        // Ollama on CPU can take several minutes; keep the proxy connection
-        // open long enough so the response isn't dropped (which would surface
-        // as an empty body / JSON parse error on the client).
-        timeout: 600000,
-        proxyTimeout: 600000,
+        // Long articles on CPU can take 15–30+ minutes (paragraph-by-paragraph Ollama).
+        timeout: 1800000,
+        proxyTimeout: 1800000,
       },
     },
   },

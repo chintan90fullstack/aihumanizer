@@ -5,6 +5,7 @@ import { antiDetectorPassWithScore, detectorHeuristicScore } from "./antiDetecto
 import { stripPerformativeCasual, countPerformativeTells } from "./performativePass.js";
 import { stripEssayTells, countEssayTells } from "./essayPass.js";
 import { splitFlaggedAdvice, countFlaggedAdvice } from "./advicePass.js";
+import { enforceGrammarLaws } from "./grammarLaws.js";
 import { analyzeDetectorSignals } from "./detectorMetrics.js";
 
 /** Phrases that GPTZero flags — if ANY remain, keep scrubbing. */
@@ -161,6 +162,8 @@ export function finalizeHumanOutput(text) {
     heuristic = result.heuristicScore;
     tells = countAiTells(out);
   }
+
+  out = enforceGrammarLaws(out);
 
   const wasTransformed = out !== original;
   console.log(

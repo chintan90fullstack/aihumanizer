@@ -12,6 +12,7 @@ import {
 } from "./transforms.js";
 import { stripPerformativeCasual } from "./performativePass.js";
 import { stripEssayTells, countEssayTells } from "./essayPass.js";
+import { enforceGrammarLaws } from "./grammarLaws.js";
 import { analyzeDetectorSignals } from "./detectorMetrics.js";
 
 /** Longest-first AI vocabulary → plain human phrasing. */
@@ -225,23 +226,9 @@ export function forceBurstiness(text, maxLen = 14) {
   return out;
 }
 
-/** "A, B, and C" triplets are a strong AI classifier signal. */
+/** Lists stay comma-separated — period fragments violate grammar laws. */
 export function breakParallelLists(text) {
-  let out = text;
-  out = out.replace(
-    /,\s+([^,]{3,50}),\s+and\s+([^,.!?]{3,50})/gi,
-    (_, middle, last) => {
-      const mid = middle.trim();
-      const end = last.trim();
-      const midCap = mid.charAt(0).toUpperCase() + mid.slice(1);
-      return `. ${midCap}. And ${end}`;
-    }
-  );
-  out = out.replace(
-    /\b(\w[\w'-]{2,28}),\s+(\w[\w'-]{2,28}),\s+and\s+(\w[\w'-]{2,28})\b/gi,
-    (_, a, b, c) => `${a} and ${b}. ${c.charAt(0).toUpperCase() + c.slice(1)} too.`
-  );
-  return out;
+  return text;
 }
 
 /** Remove em-dash AI commentary tails. */
@@ -309,6 +296,7 @@ function processBlock(block, { ultra = false } = {}) {
   t = grammarFixes(t);
   t = cleanupSpacing(t);
   t = fixCapitalization(t);
+  t = enforceGrammarLaws(t);
 
   return unmaskProtected(t, store);
 }
@@ -344,25 +332,9 @@ function stripUltraVocab(text) {
   return out;
 }
 
-/** Split runs of 3+ similar-length sentences (uniform rhythm = AI tell). */
+/** Split runs of 3+ similar-length sentences — comma splits disabled (grammar laws). */
 function splitUniformRuns(text) {
-  const sents = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
-  if (sents.length < 3) return text;
-
-  const lens = sents.map((s) => s.trim().split(/\s+/).length);
-  const out = [...sents];
-
-  for (let i = 0; i < lens.length - 2; i++) {
-    const a = lens[i];
-    const b = lens[i + 1];
-    const c = lens[i + 2];
-    if (a >= 10 && Math.abs(a - b) <= 4 && Math.abs(b - c) <= 4) {
-      const mid = out[i + 1];
-      const split = mid.replace(/,\s+/, ". ");
-      if (split !== mid) out[i + 1] = split;
-    }
-  }
-  return out.join("");
+  return text;
 }
 
 function runPasses(text, { maxRounds = 6, targetScore = 10 } = {}) {

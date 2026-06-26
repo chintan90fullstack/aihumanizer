@@ -6,8 +6,9 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import { extractText } from "./textExtractor.js";
+import { humanize } from "./humanizer/engine.js";
 import { humanizeWithOllama, ollamaConfig, warmupOllama } from "./humanizer/ollama.js";
-import { applySmartGates, humanizeDeterministic } from "./humanizer/smartHumanize.js";
+import { postProcessHumanized, textSimilarity } from "./humanizer/smartHumanize.js";
 import { recordGeneration, recordFeedback, profileSummary } from "./humanizer/feedback.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,26 +19,31 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MAX_CHARS = 50000;
 
-// Ollama is opt-in. Default is fast deterministic-only (avoids multi-minute hangs / NetworkError).
-const USE_OLLAMA = /^(1|true|yes)$/i.test(process.env.USE_OLLAMA || "");
+// Set SKIP_OLLAMA=1 to use local phrase-map engine only (fast, less paraphrase).
+const SKIP_OLLAMA = /^(1|true|yes)$/i.test(process.env.SKIP_OLLAMA || "");
 
 if (!isProduction) {
   app.use(cors());
 }
 app.use(express.json({ limit: "2mb" }));
 
-// Accept a single uploaded file in memory (max 10 MB).
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
+const SIMILARITY_RETRY_THRESHOLD = 0.72;
+
 /**
- * Humanize text. Default: fast deterministic engine (~1–3s).
- * Set USE_OLLAMA=1 to also run the local Ollama LLM (slow on CPU).
+ * Humanize: Ollama rewrites with new wording (primary), local engine fallback, then post-process.
  */
 async function handleHumanize(text, intensity, res) {
   const trimmed = (text || "").trim();
+  const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
+  const t0 = Date.now();
+  // #region agent log
+  fetch('http://127.0.0.1:7450/ingest/d242bc8c-686f-470d-8acf-51f67d8ecfa6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0cf9d6'},body:JSON.stringify({sessionId:'0cf9d6',location:'server/index.js:handleHumanize:start',message:'humanize started',data:{wordCount,charLen:trimmed.length,skipOllama:SKIP_OLLAMA},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
   if (!trimmed) {
     return res.status(400).json({ error: "No text provided to humanize." });
   }
@@ -47,38 +53,52 @@ async function handleHumanize(text, intensity, res) {
     });
   }
 
-  let outputText;
-  let engine = "deterministic";
-  let detectorHeuristic = null;
-  let aiTellsRemaining = null;
+  let rawDraft;
+  let engine = "ollama";
 
-  // Default: fast deterministic rewrite (works for short and long text).
-  let finalized = humanizeDeterministic(trimmed);
-  outputText = finalized.text;
-  detectorHeuristic = finalized.heuristicScore;
-  aiTellsRemaining = finalized.aiTellsRemaining;
-  engine = finalized.engine || "deterministic";
-  console.log(`[humanize] deterministic (${outputText.split(/\s+/).length} words)`);
+  if (SKIP_OLLAMA) {
+    console.log("[humanize] SKIP_OLLAMA — local phrase-map engine");
+    rawDraft = humanize(trimmed, { intensity }).text;
+    engine = "local";
+  } else {
+    try {
+      let r = await humanizeWithOllama(trimmed, { intensity });
+      rawDraft = r.text;
+      const sim = textSimilarity(trimmed, rawDraft);
+      console.log(`[humanize] Ollama draft similarity: ${Math.round(sim * 100)}%`);
 
-  if (USE_OLLAMA) try {
-    engine = "ollama";
-    const r = await humanizeWithOllama(trimmed, { intensity });
-    finalized = applySmartGates(r.text, trimmed);
-    outputText = finalized.text;
-    detectorHeuristic = finalized.heuristicScore;
-    aiTellsRemaining = finalized.aiTellsRemaining;
-    if (finalized.engine) engine = finalized.engine;
-  } catch (ollamaErr) {
-    console.error("[ollama] error:", ollamaErr.code || "", ollamaErr.message);
-    console.log("[humanize] Ollama failed — keeping deterministic result");
-    engine = "deterministic";
+      if (sim > SIMILARITY_RETRY_THRESHOLD && trimmed.split(/\s+/).length < 400) {
+        console.log("[humanize] too similar — retrying with paraphrase prompt");
+        r = await humanizeWithOllama(trimmed, { intensity, paraphrase: true });
+        rawDraft = r.text;
+        const sim2 = textSimilarity(trimmed, rawDraft);
+        console.log(`[humanize] paraphrase retry similarity: ${Math.round(sim2 * 100)}%`);
+      } else if (sim > SIMILARITY_RETRY_THRESHOLD) {
+        console.log("[humanize] too similar but text is long — skipping paraphrase retry to avoid timeout");
+      }
+    } catch (ollamaErr) {
+      console.error("[ollama] error:", ollamaErr.code || "", ollamaErr.message);
+      console.log("[humanize] Ollama unavailable — local phrase-map engine");
+      rawDraft = humanize(trimmed, { intensity }).text;
+      engine = "local";
+    }
   }
 
-  if (!outputText) {
-    return res.status(503).json({
-      error: "Humanization failed. Please try again.",
-      code: "HUMANIZE_FAILED",
-    });
+  const finalized = postProcessHumanized(rawDraft, trimmed);
+  const outputText = finalized.text;
+  const similarity = textSimilarity(trimmed, outputText);
+
+  console.log(
+    `[humanize] ${engine} → ${outputText.split(/\s+/).length} words, ` +
+      `similarity ${Math.round(similarity * 100)}%`
+  );
+
+  // #region agent log
+  fetch('http://127.0.0.1:7450/ingest/d242bc8c-686f-470d-8acf-51f67d8ecfa6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0cf9d6'},body:JSON.stringify({sessionId:'0cf9d6',location:'server/index.js:handleHumanize:done',message:'humanize completed',data:{engine,wordCount,outputWords:outputText.split(/\s+/).length,similarity:Math.round(similarity*100),elapsedMs:Date.now()-t0},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
+
+  if (similarity > 0.85) {
+    console.warn(`[humanize] WARNING: output still very similar (${Math.round(similarity * 100)}%)`);
   }
 
   try {
@@ -96,8 +116,9 @@ async function handleHumanize(text, intensity, res) {
       generation_id: generationId,
       mode: intensity || "balanced",
       engine,
-      detector_heuristic: detectorHeuristic,
-      ai_tells_remaining: aiTellsRemaining,
+      similarity: Math.round(similarity * 100),
+      detector_heuristic: finalized.heuristicScore,
+      ai_tells_remaining: finalized.aiTellsRemaining,
     });
   } catch (err) {
     console.error("[humanize] post-processing error:", err);
@@ -108,9 +129,9 @@ async function handleHumanize(text, intensity, res) {
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
-    engine: USE_OLLAMA ? "ollama" : "deterministic",
+    engine: SKIP_OLLAMA ? "local" : "ollama",
     ollama: ollamaConfig,
-    use_ollama: USE_OLLAMA,
+    skip_ollama: SKIP_OLLAMA,
     profile: profileSummary(),
   });
 });
@@ -213,16 +234,12 @@ app.use((err, _req, res, _next) => {
 const server = app.listen(PORT, () => {
   console.log(
     `AI Humanizer running on http://localhost:${PORT} ` +
-      `(engine: Ollama ${ollamaConfig.model} @ ${ollamaConfig.url})`
+      `(engine: ${SKIP_OLLAMA ? "local" : "Ollama " + ollamaConfig.model} @ ${ollamaConfig.url})`
   );
-  // Pre-load the model so the first user click isn't a cold start.
-  warmupOllama();
+  if (!SKIP_OLLAMA) warmupOllama();
 });
 
-// Allow long-running Ollama generations (CPU can take several minutes).
-// Node's defaults would otherwise close the socket with an empty body,
-// which the client sees as a JSON parse error.
-server.requestTimeout = 0; // no per-request cap
+server.requestTimeout = 0;
 server.headersTimeout = 0;
 server.keepAliveTimeout = 620000;
 server.setTimeout(0);

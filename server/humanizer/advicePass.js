@@ -182,22 +182,16 @@ export function splitFlaggedAdvice(text) {
   return out;
 }
 
-/** Break any sentence over maxWords at a comma or semicolon (keeps all words). */
-export function splitLongSentencesKeepWords(text, maxWords = 12) {
+/** Split only at semicolons when a sentence is very long — never chop comma lists. */
+export function splitLongSentencesKeepWords(text, maxWords = 26) {
   return text.replace(/[^.!?]+[.!?]+|[^.!?]+$/g, (sentence) => {
     const words = sentence.trim().split(/\s+/);
     if (words.length <= maxWords) return sentence;
 
     const punct = sentence.trim().endsWith("?") ? "?" : ".";
     const body = sentence.trim().replace(/[.!?]+$/, "");
-    const parts = body.split(/;\s+|,\s+(?=(?:and|but|so|or|you|they|it|their|as)\s)/i);
-    if (parts.length < 2) {
-      const mid = Math.ceil(words.length / 2);
-      const a = words.slice(0, mid).join(" ");
-      const b = words.slice(mid).join(" ");
-      const capB = b.charAt(0).toUpperCase() + b.slice(1);
-      return `${a}${punct} ${capB}${punct}`;
-    }
+    const parts = body.split(/;\s+/);
+    if (parts.length < 2) return sentence;
 
     return parts
       .map((p) => {

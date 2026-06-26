@@ -48,35 +48,39 @@ const KEEP_ALIVE = process.env.OLLAMA_KEEP_ALIVE || "1h";
 const MAX_PREDICT = Number(process.env.OLLAMA_MAX_PREDICT || 4096);
 
 const FEWSHOT = `EXAMPLE — AI (detector flags high %):
-"Managing a demanding boss can be an overwhelming experience, filled with constant pressure."
-"Dealing with a demanding boss can be a total nightmare! Let's be real, you're stressed out!"
+"Organic fertilizers are packed with natural materials like manure and compost that enrich the soil."
+"Furthermore, utilizing organic fertilizers can be beneficial for achieving optimal growth outcomes."
 
-EXAMPLE — HUMAN (detector passes):
-"Working with a demanding boss is tough. Expectations run high. The pace doesn't slow down. You end up tired and overlooked. You can't change how they lead. You can change how you respond."
+EXAMPLE — HUMAN rewrite (different words, same meaning):
+"Organic fertilizer mixes in things like compost and manure. That stuff feeds the soil over time."
+"You get better growth when you stick with organic options — the plants actually take up more nutrients."
 
-Write like the HUMAN example — calm, plain, no exclamation marks, no "let's be real" or "total nightmare".`;
+Write like the HUMAN example — genuinely rephrased, not a punctuation shuffle.`;
 
-const SYSTEM_PROMPT = `You rewrite text like a calm coworker explaining something — NOT like ChatGPT, a blogger, or a life coach.
+const SYSTEM_PROMPT = `You rewrite text so it sounds like a real person wrote it — NOT like ChatGPT or a marketing blog.
 
-${FEWSHOT}
-
-BANNED: exclamation marks, "total nightmare", "let's be real", "you see", "honestly I bet", "superpower", "high-maintenance", "clarity is queen", "without losing your mind", "smart and strategic", overwhelming experience, cultivating, safeguarding, navigating, strategic thinking, Furthermore, Moreover.
+MANDATORY — CHANGE THE WORDING (not just punctuation):
+- Rewrite EVERY sentence with different words, synonyms, and structure.
+- WRONG: copying the original and only swapping commas for periods.
+- RIGHT: new phrasing that keeps the same facts — reorder clauses, use plain synonyms, vary sentence length.
+- Replace stiff/AI words: utilize→use, furthermore→also, in order to→to, beneficial→helps, numerous→many, facilitate→help, leverage→use.
 
 STYLE:
-- Mix short and medium sentences. No dramatic openers.
-- Contractions: don't, it's, you're, can't
-- Plain words. No hype. No fake casual slang.
-- Questions only when natural: "Are they under pressure themselves?"
-
-RULES: Keep ALL meaning. Same paragraphs. Word count ±15%.
+- Conversational but clear. Contractions: don't, it's, you're, can't.
+- Mix short and medium sentences. No exclamation marks. No "let's be real" or hype.
+- Same paragraph breaks. Keep ALL facts and details. Word count ±15%.
 OUTPUT ONLY THE REWRITTEN TEXT.`;
 
+const PARAPHRASE_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
+
+EXTRA RULE: Your last attempt copied too much original wording. This time change at least 60% of phrasing. Every paragraph must use noticeably different sentences.`;
+
 /** Second-pass system prompt — strips remaining AI tone from a draft. */
-const DEAI_SYSTEM_PROMPT = `Fix AI-sounding text. Make it calm and plain — like a real person wrote it, not an AI pretending to be casual.
+const DEAI_SYSTEM_PROMPT = `Fix AI-sounding text. Rephrase with plain words and natural rhythm — like a real person, not AI.
 
 ${FEWSHOT}
 
-Remove ALL exclamation marks. Remove hype words. Keep every fact. Output ONLY the fixed text.`;
+Remove exclamation marks and hype. Keep every fact. Use different words than the draft where possible. OUTPUT ONLY the fixed text.`;
 
 const TEMPERATURE = {
   light: 0.78,
@@ -159,11 +163,18 @@ function ensureReachable() {
   });
 }
 
-function buildPrompt(text, { expansion = false, paragraphMode = false } = {}) {
+function buildPrompt(text, { expansion = false, paragraphMode = false, paraphrase = false } = {}) {
   const words = wordCount(text);
   const paras = splitParagraphs(text);
   const minW = Math.floor(words * 0.85);
   const maxW = Math.ceil(words * 1.15);
+
+  if (paraphrase) {
+    return (
+      `Your previous rewrite copied too much of the original. REWRITE COMPLETELY with new vocabulary and sentence structures. ` +
+      `Target ${minW}–${maxW} words. Keep every fact. Do NOT return near-identical text.\n\nTEXT:\n${text}`
+    );
+  }
 
   if (expansion) {
     return (
@@ -179,14 +190,13 @@ function buildPrompt(text, { expansion = false, paragraphMode = false } = {}) {
     const pMin = Math.floor(target * 0.85);
     const pMax = Math.ceil(target * 1.15);
     return (
-      `Rewrite like the HUMAN example above. Target: ${pMin}–${pMax} words (original: ${target}). ` +
-      `One paragraph only. Short punchy sentences. A question if it fits.\n\n` +
-      `PARAGRAPH:\n${text}`
+      `Rewrite with NEW words and structure (not just punctuation changes). Target: ${pMin}–${pMax} words (original: ${target}). ` +
+      `One paragraph only. Keep all facts.\n\nPARAGRAPH:\n${text}`
     );
   }
 
   return (
-    `${FEWSHOT}\n\nRewrite the text below like the HUMAN example. ` +
+    `Rewrite the text below with genuinely different phrasing — synonyms, new sentence structures, plain tone. ` +
     `Original: ${words} words, ${paras.length} paragraph(s). ` +
     `Output MUST be ${minW}–${maxW} words, ${paras.length} paragraph(s). Preserve every idea.\n\n` +
     `TEXT:\n${text}`
@@ -280,14 +290,15 @@ function isTooShort(inputWords, outputWords) {
  * Humanize paragraph-by-paragraph — most reliable way to preserve length and
  * meaning with smaller local models like llama3:8b.
  */
-async function humanizeByParagraphs(text, timeoutMs, intensity) {
+async function humanizeByParagraphs(text, timeoutMs, intensity, { paraphrase = false } = {}) {
   const paragraphs = splitParagraphs(text);
   const results = [];
+  const system = paraphrase ? PARAPHRASE_SYSTEM_PROMPT : SYSTEM_PROMPT;
 
   for (const para of paragraphs) {
     const pWords = wordCount(para);
-    const prompt = buildPrompt(para, { paragraphMode: true });
-    let raw = await callOllama(prompt, pWords, timeoutMs, intensity);
+    const prompt = buildPrompt(para, { paragraphMode: true, paraphrase });
+    let raw = await callOllama(prompt, pWords, timeoutMs, intensity, system);
     let cleaned = cleanOutput(raw);
 
     if (isTooShort(pWords, wordCount(cleaned))) {
@@ -333,6 +344,8 @@ export async function humanizeWithOllama(text, opts = {}) {
   await ensureReachable();
 
   const intensity = opts.intensity || "balanced";
+  const paraphrase = Boolean(opts.paraphrase);
+  const system = paraphrase ? PARAPHRASE_SYSTEM_PROMPT : SYSTEM_PROMPT;
   // Pre-clean so Ollama doesn't copy AI phrases from the source.
   const source = preCleanInput(text);
   const inputWords = wordCount(source);
@@ -345,6 +358,7 @@ export async function humanizeWithOllama(text, opts = {}) {
       paragraphCount: splitParagraphs(source).length,
       inputSignals: analyzeDetectorSignals(source),
       intensity,
+      paraphrase,
       postProcessPass: "antiDetector",
     },
     "H5"
@@ -367,13 +381,14 @@ export async function humanizeWithOllama(text, opts = {}) {
 
       let cleaned;
       if (useParagraphMode) {
-        cleaned = await humanizeByParagraphs(source, attempts[i], intensity);
+        cleaned = await humanizeByParagraphs(source, attempts[i], intensity, { paraphrase });
       } else {
         let raw = await callOllama(
-          buildPrompt(source),
+          buildPrompt(source, { paraphrase }),
           inputWords,
           attempts[i],
-          intensity
+          intensity,
+          system
         );
         cleaned = cleanOutput(raw);
 

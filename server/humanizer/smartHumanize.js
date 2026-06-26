@@ -7,8 +7,11 @@ import { antiDetectorPass } from "./antiDetectorPass.js";
 import { finalizeHumanOutput } from "./finalizeHumanOutput.js";
 import { combinedAiScore, stripEssayTells } from "./essayPass.js";
 import { splitFlaggedAdvice, splitLongSentencesKeepWords, countFlaggedAdvice } from "./advicePass.js";
+import { enforceGrammarLaws, countGrammarViolations } from "./grammarLaws.js";
 import { lengthGuard, wordCount } from "./lengthGuard.js";
 import { countAiTells } from "./finalizeHumanOutput.js";
+import { applyPhraseMap, injectContractions, cleanupSpacing, fixCapitalization } from "./transforms.js";
+import stringSimilarity from "string-similarity";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEBUG_LOG = path.resolve(__dirname, "../../debug-0cf9d6.log");
@@ -39,7 +42,8 @@ export function deterministicHumanize(text) {
   let t = stripEssayTells(text);
   t = antiDetectorPass(t);
   t = splitFlaggedAdvice(t);
-  t = splitLongSentencesKeepWords(t, 14);
+  t = splitLongSentencesKeepWords(t, 26);
+  t = enforceGrammarLaws(t);
   return finalizeHumanOutput(t).text;
 }
 
@@ -59,17 +63,35 @@ function scoreFinalized(finalized, text, origWords) {
   );
 }
 
+/** How similar two texts are (0 = different, 1 = identical). */
+export function textSimilarity(a, b) {
+  const x = (a || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const y = (b || "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!x || !y) return 0;
+  return stringSimilarity.compareTwoStrings(x, y);
+}
+
+function enrichVocabulary(draft) {
+  let out = applyPhraseMap(draft, {}, 0.35).text;
+  out = injectContractions(out);
+  out = cleanupSpacing(out);
+  out = fixCapitalization(out);
+  return out;
+}
+
 function polish(text, originalInput) {
   const origWords = wordCount(originalInput);
-  let out = splitFlaggedAdvice(text);
-  out = splitLongSentencesKeepWords(out, 12);
+  let out = enrichVocabulary(text);
+  out = antiDetectorPass(out);
   out = splitFlaggedAdvice(out);
   const finalized = finalizeHumanOutput(out);
   out = lengthGuard(finalized.text, originalInput);
   out = splitFlaggedAdvice(out);
-  out = splitLongSentencesKeepWords(out, 12);
+  out = enforceGrammarLaws(out);
   const tells = countAiTells(out);
   const outWords = wordCount(out);
+  const grammarViolations = countGrammarViolations(out);
+  const similarity = textSimilarity(originalInput, out);
 
   // #region agent log
   dbgLog(
@@ -82,6 +104,8 @@ function polish(text, originalInput) {
       lengthRatio: Math.round((outWords / origWords) * 100),
       adviceTells: countFlaggedAdvice(out),
       aiTells: tells,
+      grammarViolations,
+      similarity: Math.round(similarity * 100),
     },
     "H3"
   );
@@ -92,7 +116,13 @@ function polish(text, originalInput) {
     heuristicScore: finalized.heuristicScore,
     aiTellsRemaining: tells,
     wasTransformed: out !== (text || "").trim(),
+    similarity,
   };
+}
+
+/** Post-process a rewritten draft (Ollama or local engine) — NOT a punctuation-only pass on the original. */
+export function postProcessHumanized(draft, originalInput) {
+  return { ...polish(draft, originalInput), engine: "rewritten" };
 }
 
 /**
