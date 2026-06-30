@@ -101,29 +101,30 @@ async function handleHumanize(text, intensity, res) {
     console.warn(`[humanize] WARNING: output still very similar (${Math.round(similarity * 100)}%)`);
   }
 
+  let generationId = null;
   try {
-    const generationId = recordGeneration({
+    generationId = recordGeneration({
       input: trimmed,
       output: outputText,
       applied: [],
       mode: intensity || "balanced",
     });
-
-    return res.json({
-      humanized_text: outputText,
-      original_words: trimmed.split(/\s+/).length,
-      output_words: outputText.split(/\s+/).length,
-      generation_id: generationId,
-      mode: intensity || "balanced",
-      engine,
-      similarity: Math.round(similarity * 100),
-      detector_heuristic: finalized.heuristicScore,
-      ai_tells_remaining: finalized.aiTellsRemaining,
-    });
   } catch (err) {
-    console.error("[humanize] post-processing error:", err);
-    return res.status(500).json({ error: "Failed to humanize text." });
+    // Feedback store is optional — don't fail humanization if data/ isn't writable.
+    console.error("[humanize] feedback store error:", err.message);
   }
+
+  return res.json({
+    humanized_text: outputText,
+    original_words: trimmed.split(/\s+/).length,
+    output_words: outputText.split(/\s+/).length,
+    generation_id: generationId,
+    mode: intensity || "balanced",
+    engine,
+    similarity: Math.round(similarity * 100),
+    detector_heuristic: finalized.heuristicScore,
+    ai_tells_remaining: finalized.aiTellsRemaining,
+  });
 }
 
 app.get("/api/health", (_req, res) => {

@@ -125,6 +125,21 @@ export const PHRASE_MAP = [
   { id: "landscape", from: "landscape", to: "scene" },
   { id: "unlock_potential", from: "unlock the potential", to: "make the most" },
   { id: "harness_power", from: "harness the power of", to: "use" },
+
+  // --- AI-detector hot words ---
+  { id: "its_essential_to", from: "it's essential to", to: "you need to" },
+  { id: "it_is_essential_to", from: "it is essential to", to: "you need to" },
+  { id: "its_imperative_to", from: "it's imperative to", to: "you need to" },
+  { id: "cultivate", from: "cultivate", to: "build" },
+  { id: "cultivating", from: "cultivating", to: "building" },
+  { id: "safeguard", from: "safeguard", to: "protect" },
+  { id: "safeguarding", from: "safeguarding", to: "protecting" },
+  { id: "strategic_thinking", from: "strategic thinking", to: "clear thinking" },
+  { id: "underlying_factors", from: "underlying factors", to: "root causes" },
+  { id: "navigate", from: "navigate", to: "handle" },
+  { id: "navigating", from: "navigating", to: "handling" },
+  { id: "empower", from: "empower", to: "help" },
+  { id: "empowering", from: "empowering", to: "helping" },
 ];
 
 // Sort longest phrase first so multi-word phrases match before their parts.

@@ -138,25 +138,16 @@ export function splitLongSentences(text, maxLen = 28) {
   return text.replace(/[^.!?]+[.!?]+|\S+$/g, (sentence) => {
     if (wordCount(sentence) <= maxLen) return sentence;
 
-    // Prefer a semicolon split.
-    let idx = sentence.indexOf("; ");
-    let dropLen = 2;
-
-    // Otherwise split a coordinated clause: ", and " / ", but " / ", so ".
-    if (idx === -1) {
-      const m = sentence.match(/, (?:and|but|so) /);
-      if (m && m.index > 8) {
-        idx = m.index;
-        dropLen = m[0].length;
-      }
-    }
+    // Only split at semicolons — never chop comma lists or relative clauses.
+    const idx = sentence.indexOf("; ");
     if (idx === -1) return sentence;
 
     const first = sentence.slice(0, idx).trim().replace(/[,;]+$/, "");
-    let second = sentence.slice(idx + dropLen).trim();
+    let second = sentence.slice(idx + 2).trim();
     if (!second) return sentence;
     second = second.charAt(0).toUpperCase() + second.slice(1);
-    return `${first}. ${second}`;
+    const endPunct = sentence.trim().endsWith("?") ? "?" : ".";
+    return `${first}${endPunct} ${second}`;
   });
 }
 
