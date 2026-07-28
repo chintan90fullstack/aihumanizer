@@ -10,7 +10,9 @@ import {
   maskProtected,
   unmaskProtected,
 } from "./transforms.js";
-import { analyzeDetectorSignals } from "./detectorMetrics.js";
+import { analyzeDetectorSignals, detectorHeuristicScore } from "./detectorMetrics.js";
+
+export { detectorHeuristicScore };
 
 /** Longest-first AI vocabulary → plain human phrasing. */
 const AI_VOCAB = [
@@ -245,17 +247,6 @@ export function breakParallelLists(text) {
 /** Remove em-dash AI commentary tails. */
 export function trimDashCommentary(text) {
   return text.replace(/\s*[–—]\s*insights that can inform[^.!?]*[.!?]?/gi, ".");
-}
-
-export function detectorHeuristicScore(signals) {
-  let score = 0;
-  score += signals.aiPhraseCount * 12;
-  score += signals.parallelListCount * 8;
-  if (signals.burstinessStdDev < 5) score += 25;
-  else if (signals.burstinessStdDev < 8) score += 10;
-  if (signals.contractionRate < 2) score += 12;
-  if (signals.minSentenceLen > 5) score += 15;
-  return Math.min(100, score);
 }
 
 function grammarFixes(text) {
