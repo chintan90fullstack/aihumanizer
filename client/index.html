@@ -1,36 +1,196 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="https://hypwave.com/favicon.ico"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Humanizer — Make AI text sound human</title>
+    <link rel="stylesheet" crossorigin href="/assets/index-B4RR-g5J.css?v=20260727e">
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://hypwave.com/assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://hypwave.com/assets/css/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="theme-color" content="#2c68ce" />
   </head>
   <body>
-    <div class="page">
-      <!-- ============================================================ -->
-      <!-- HEADER  (edit this text directly — no rebuild needed)        -->
-      <!-- ============================================================ -->
-      <header class="hero">
-        <div class="logo">
-          <span class="logo-mark">AI</span> Humanizer
+    
+  <header class="header sticky">
+    <div class="header_mainsec">
+      <nav class="navbar navbar-expand-lg">
+        <div class="container">
+          <div class="header_innerbox">
+            <a aria-current="page" class="navbar-brand active" href="https://hypwave.com/" data-discover="true">
+              <img alt="Hypwave Logo" loading="lazy" src="https://hypwave.com/assets/img/Hypwave-Final-Logo.png">
+            </a>
+            <button class="navbar-toggler" type="button" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+              <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="navbar-collapse collapse">
+              <ul class="navbar-nav">
+                <li class="nav-item"><a aria-current="page" class="nav-link" href="hypwave.com" data-discover="true">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="https://hypwave.com/about" data-discover="true">About Us</a></li>
+                <li class="nav-item dropdown categories-dropdown-parent"><a class="nav-link" href="/guest-posting-services" data-discover="true">Link Building <i class="fas fa-angle-down"></i></a>
+                  <ul class="dropdown-menu " aria-labelledby="navbarDropdown">
+                    <li><a class="dropdown-item" href="https://hypwave.com/guest-posting-services" data-discover="true">Guest Posting</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/link-insertion-services" data-discover="true">Link Insertion</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/citations-services" data-discover="true">Citations</a></li>
+                  </ul>
+                </li>
+                <li class="nav-item"><a class="nav-link" href="https://hypwave.com/content-writing-services" data-discover="true">Content Writing</a></li>
+                <li class="nav-item dropdown"><a class="nav-link" href="/category/technology" data-discover="true">Categories <i class="fas fa-angle-down"></i></a>
+                  <ul class="dropdown-menu category-dropdown-menu " aria-labelledby="navbarDropdown">
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/technology" data-discover="true">Technology</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/saas" data-discover="true">SaaS</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/finance" data-discover="true">Finance</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/health" data-discover="true">Health</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/crypto" data-discover="true">Crypto</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/real-estate" data-discover="true">Real Estate</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/e-commerce" data-discover="true">E-commerce</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/digital-marketing" data-discover="true">Digital Marketing</a></li>
+                    <li><a class="dropdown-item" href="https://hypwave.com/category/business" data-discover="true">Business</a></li>
+                  </ul>
+                </li>
+                <li class="nav-item"><a class="nav-link" href="https://hypwave.com/blog" data-discover="true">Blogs</a></li>
+                <li class="nav-item dropdown"><a aria-current="page" class="nav-link active" href="/" data-discover="true">Tools <i class="fas fa-angle-down"></i></a>
+                  <ul class="dropdown-menu category-dropdown-menu " aria-labelledby="navbarDropdown">
+                    <li><a rel="noopener noreferrer" class="dropdown-item" href="https://bloggenerator.hypwave.com/" target="_blank">Blog Generator</a></li>
+                    <li><a rel="noopener noreferrer" class="dropdown-item" href="https://aicontentchecker.hypwave.com/" target="_blank">AI Content Detector</a></li>
+                  </ul>
+                </li>
+                <li class="nav-item contact_menu"><a class="nav-link" href="https://hypwave.com/contact-us" data-discover="true">Contact Us</a></li>
+              </ul>
+            </div>
+            <div class="btn_mainsec"><a class="btn_style" href="https://hypwave.com/contact-us" data-discover="true">Contact Us</a></div>
+          </div>
         </div>
-        <h1>Make AI text sound human</h1>
-        <p class="subtitle">
-          Paste your text or upload a file on the left, and get natural,
-          human-sounding writing on the right.
-        </p>
-      </header>
-
-      <!-- The humanizer tool is rendered here by React. Do not edit. -->
-      <div id="root"></div>
-
-      <!-- ============================================================ -->
-      <!-- FOOTER  (edit this text directly — no rebuild needed)        -->
-      <!-- Leave it empty to hide the footer.                           -->
-      <!-- ============================================================ -->
-      <footer class="footer"></footer>
+      </nav>
     </div>
-    <script type="module" src="/src/main.jsx"></script>
+  </header>
+  <div class="page" style="margin-top: 100px;">
+    <header class="hero">
+      <div class="logo">
+        <span class="logo-mark">HW</span> Hypwave Humanizer
+      </div>
+      <h1>Make AI text sound human</h1>
+      <p class="subtitle">
+        Paste your text or upload a file on the left, and get natural,
+        human-sounding writing on the right — styled for
+        <strong>Hypwave</strong>.
+      </p>
+    </header>
+    <div id="root"></div>
+  </div>
+  <footer>
+    <div class="footer_mainsec">
+      <div class="container">
+        <div class="row">
+          <div class="col-sm-12 col-md-6 col-lg-3 col-xl-3">
+            <div class="logotxt_sec">
+              <div class="logobox">
+                <a aria-current="page" class="navbar-brand active" href="https://hypwave.com" data-discover="true">
+                  <img alt="Hypwave Logo" loading="lazy" src="https://hypwave.com/assets/img/Hypwave-Final-Logo.png">
+                </a>
+              </div>
+              <div class="logocontnt">
+                <p>We make link building easy. From citations to guest posts to content marketing, we help your brand gain trust, visibility, and growth online.</p>
+              </div>
+            </div>
+            <div class="followbox">
+              <div class="titlebox">
+                <h4>Follow Us</h4>
+              </div>
+              <ul>
+                <li><a class="" href="https://www.facebook.com/people/Hypwave/61578754176093/" target="_blank"><i class="fab fa-facebook-square"></i></a></li>
+                <li><a class="" href="https://www.instagram.com/hypwave_team" target="_blank"><i class="fab fa-instagram-square"></i></a></li>
+                <li><a class="" href="https://x.com/Hypwave" target="_blank"><i class="fa-brands fa-square-x-twitter"></i></a></li>
+                <li><a class="" href="https://youtube.com/@hypwave?si=P4c8hMz5vJkH3N9F" target="_blank"><i class="fab fa-youtube-square"></i></a></li>
+                <li><a class="" href="https://www.linkedin.com/company/hypwave/" target="_blank"><i class="fab fa-linkedin"></i></a></li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-sm-12 col-md-6 col-lg-2 col-xl-2">
+            <div class="menubox company_menu">
+              <div class="titlebox"><h4>Company</h4></div>
+              <ul>
+                <li><a aria-current="page" class="active" href="/" data-discover="true">Home</a></li>
+                <li><a class="" href="https://hypwave.com/about" data-discover="true">About Us</a></li>
+                <li><a class="" href="https://hypwave.com/blog" data-discover="true">Blog</a></li>
+                <li><a class="" href="https://hypwave.com/contact-us" data-discover="true">Contact Us</a></li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-sm-12 col-md-6 col-lg-2 col-xl-2">
+            <div class="menubox services_menu">
+              <div class="titlebox"><h4>Services</h4></div>
+              <ul>
+                <li><a class="" href="https://hypwave.com/guest-posting-services" data-discover="true">Guest Posting</a></li>
+                <li><a class="" href="https://hypwave.com/citations-services" data-discover="true">Citations</a></li>
+                <li><a class="" href="https://hypwave.com/content-writing-services" data-discover="true">Content Writing</a></li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-sm-12 col-md-6 col-lg-2 col-xl-2">
+            <div class="menubox categories_menu">
+              <div class="titlebox"><h4>Categories</h4></div>
+              <ul>
+                <li><a class="" href="https://hypwave.com/category/technology" data-discover="true">Technology</a></li>
+                <li><a class="" href="https://hypwave.com/category/saas" data-discover="true">SaaS</a></li>
+                <li><a class="" href="https://hypwave.com/category/finance" data-discover="true">Finance</a></li>
+                <li><a class="" href="https://hypwave.com/category/health" data-discover="true">Health</a></li>
+                <li><a class="" href="https://hypwave.com/category/crypto" data-discover="true">Crypto</a></li>
+                <li><a class="" href="https://hypwave.com/category/real-estate" data-discover="true">Real Estate</a></li>
+                <li><a class="" href="https://hypwave.com/category/e-commerce" data-discover="true">E-commerce</a></li>
+                <li><a class="" href="https://hypwave.com/category/digital-marketing" data-discover="true">Digital Marketing</a></li>
+                <li><a class="" href="https://hypwave.com/category/business" data-discover="true">Business</a></li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-sm-12 col-md-6 col-lg-3 col-xl-3">
+            <div class="info_box">
+              <div class="titlebox"><h4>Contact Details</h4></div>
+              <ul>
+                <li>
+                  <div class="iconbox"><img alt="Mail Icon" src="https://hypwave.com/assets/img/mail_icon.png"></div>
+                  <div class="icontxt"><p><a href="mailto:hello@hypwave.com">hello@hypwave.com</a></p></div>
+                </li>
+                <li>
+                  <div class="iconbox"><img alt="Telephone Icon" src="https://hypwave.com/assets/img/telephone_icon.png"></div>
+                  <div class="icontxt"><p><a href="tel:+919238777271">+91 92387 77271</a></p></div>
+                </li>
+                <li>
+                  <div class="iconbox"><img alt="Location Icon" src="https://hypwave.com/assets/img/location_icon.png"></div>
+                  <div class="icontxt"><p><a href="https://maps.app.goo.gl/fB6biP56PQTAKv2F8" target="_blank" rel="noopener noreferrer">Plot No. 55, 3rd Floor, Medanta Hospital Road, opposite Orange Lily Hotel, Vijay Nagar, Ratna Lok Colony, Indore, Madhya Pradesh 452010</a></p></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+      
+    <div class="copyright_mainsec">
+      <div class="container">
+        <div class="row">
+          <div class="col-sm-12 col-md-12 col-lg-12 col-xl-12">
+            <div class="copyright_txt"><p>Copyright © 2004 - 2026 Hypwave, All Rights Reserved. <a class="" href="/privacy-policy" data-discover="true">Privacy Policy</a></p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+  <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

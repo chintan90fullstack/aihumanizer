@@ -10,6 +10,8 @@ import { humanize } from "./humanizer/engine.js";
 import { humanizeWithOllama, ollamaConfig, warmupOllama } from "./humanizer/ollama.js";
 import { applySmartGates } from "./humanizer/smartHumanize.js";
 import { recordGeneration, recordFeedback, profileSummary } from "./humanizer/feedback.js";
+import { detectorHeuristicScore } from "./humanizer/antiDetectorPass.js";
+import { analyzeDetectorSignals } from "./humanizer/detectorMetrics.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.join(__dirname, "dist");
@@ -54,6 +56,7 @@ async function handleHumanize(text, intensity, res) {
   let engine = "ollama";
   let detectorHeuristic = null;
   let aiTellsRemaining = null;
+  const detectorBefore = detectorHeuristicScore(analyzeDetectorSignals(trimmed));
 
   try {
     const r = await humanizeWithOllama(trimmed, { intensity });
@@ -96,6 +99,8 @@ async function handleHumanize(text, intensity, res) {
       mode: intensity || "balanced",
       engine,
       detector_heuristic: detectorHeuristic,
+      detector_before: detectorBefore,
+      detector_after: detectorHeuristic,
       ai_tells_remaining: aiTellsRemaining,
     });
   } catch (err) {

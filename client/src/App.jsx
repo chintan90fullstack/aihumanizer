@@ -14,6 +14,149 @@ function countWords(text) {
   return t ? t.split(/\s+/).length : 0;
 }
 
+function clampPct(n) {
+  const v = Math.round(Number(n) || 0);
+  return Math.max(0, Math.min(100, v));
+}
+
+function aiLabel(aiPct) {
+  if (aiPct >= 60) return "Likely AI";
+  if (aiPct >= 40) return "Uncertain";
+  return "Likely Human";
+}
+
+function engineLabel(engine) {
+  if (!engine) return "local";
+  if (engine.startsWith("local")) return "local";
+  return engine;
+}
+
+/** SVG donut: AI (red) + Human (green), AI % in the center. */
+function DonutChart({ aiPct }) {
+  const ai = clampPct(aiPct);
+  const human = 100 - ai;
+  const r = 42;
+  const c = 2 * Math.PI * r;
+  const aiLen = (ai / 100) * c;
+  const humanLen = c - aiLen;
+  const centerColor = ai >= 50 ? "#e03e3e" : "#2ecc71";
+
+  return (
+    <div className="donut-wrap" aria-hidden>
+      <svg viewBox="0 0 120 120" className="donut-svg">
+        <circle
+          className="donut-track"
+          cx="60"
+          cy="60"
+          r={r}
+          fill="none"
+          stroke="#e8eef5"
+          strokeWidth="14"
+        />
+        <circle
+          cx="60"
+          cy="60"
+          r={r}
+          fill="none"
+          stroke="#e03e3e"
+          strokeWidth="14"
+          strokeDasharray={`${aiLen} ${c}`}
+          strokeDashoffset={0}
+          transform="rotate(-90 60 60)"
+        />
+        <circle
+          cx="60"
+          cy="60"
+          r={r}
+          fill="none"
+          stroke="#2ecc71"
+          strokeWidth="14"
+          strokeDasharray={`${humanLen} ${c}`}
+          strokeDashoffset={-aiLen}
+          transform="rotate(-90 60 60)"
+        />
+      </svg>
+      <div className="donut-center">
+        <span className="donut-pct" style={{ color: centerColor }}>
+          {ai}%
+        </span>
+        <span className="donut-sub">AI</span>
+      </div>
+    </div>
+  );
+}
+
+function DetectionSide({ title, aiPct }) {
+  const ai = clampPct(aiPct);
+  const human = 100 - ai;
+  return (
+    <div className="detection-side">
+      <DonutChart aiPct={ai} />
+      <div className="detection-meta">
+        <div className="detection-side-title">{title}</div>
+        <div className="detection-side-label">{aiLabel(ai)}</div>
+        <div className="detection-legend">
+          <span>
+            <i className="dot ai" /> AI {ai}%
+          </span>
+          <span>
+            <i className="dot human" /> Human {human}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetectionGauge({ stats }) {
+  if (!stats) return null;
+
+  const before = clampPct(
+    stats.detector_before ?? stats.detector_heuristic ?? 0
+  );
+  const after = clampPct(
+    stats.detector_after ?? stats.detector_heuristic ?? before
+  );
+  const dropped = Math.max(0, before - after);
+  const origWords = stats.original_words ?? 0;
+  const outWords = stats.output_words ?? 0;
+  const tells = stats.ai_tells_remaining;
+  const clean = typeof tells === "number" ? tells <= 0 : after < 15;
+
+  return (
+    <section className="detection-card" aria-label="AI detection">
+      <header className="detection-header">
+        <h2>AI detection</h2>
+        <p>Local heuristic gauge (ZeroGPT-style). Not ZeroGPT&apos;s cloud model.</p>
+      </header>
+
+      <div className="detection-charts">
+        <DetectionSide title="Before humanize" aiPct={before} />
+        <div className="detection-arrow" aria-hidden>
+          →
+        </div>
+        <DetectionSide title="After humanize" aiPct={after} />
+      </div>
+
+      <div className="detection-footer">
+        <span>
+          AI score dropped <strong>{dropped} points</strong>
+        </span>
+        <span>
+          {origWords} → {outWords} words
+        </span>
+        <span>Engine: {engineLabel(stats.engine)}</span>
+      </div>
+
+      <div className={`detection-status ${clean ? "ok" : "warn"}`}>
+        {clean
+          ? "No strong AI sentence flags remaining."
+          : `${tells} strong AI sentence flag${tells === 1 ? "" : "s"} still present.`}
+      </div>
+    </section>
+  );
+}
+
 // Safely parse a response body. Long Ollama runs can occasionally return an
 // empty or non-JSON body (e.g. a proxy/connection drop); turn that into a
 // clear message instead of a cryptic "JSON.parse: unexpected end of data".
@@ -293,16 +436,14 @@ export default function App() {
       </div>
 
       {stats && (
-        <div className="stats">
-          {typeof stats.original_words === "number" && (
-            <span>{stats.original_words} words processed</span>
+        <>
+          <DetectionGauge stats={stats} />
+          {edited && (
+            <div className="stats">
+              <span className="edited-note">Edited — save to improve</span>
+            </div>
           )}
-          {typeof stats.transforms_applied === "number" && (
-            <span>{stats.transforms_applied} transforms applied</span>
-          )}
-          {stats.mode && <span>Mode: {stats.mode}</span>}
-          {edited && <span className="edited-note">Edited — save to improve</span>}
-        </div>
+        </>
       )}
     </main>
   );
